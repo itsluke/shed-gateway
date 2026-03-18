@@ -1,0 +1,21 @@
+---
+- hosts: all
+  gather_facts: true
+  pre_tasks:
+    - import_tasks: tasks/ssh_juggle_port.yml
+      tags: [always]
+
+- hosts: gateway
+  become: yes
+  pre_tasks:
+    - import_tasks: tasks/create_networks.yml
+      tags: [always]
+  roles:
+    - role: cloudflare
+      tags: [cloudflare, gateway]
+    - role: traefik
+      tags: [traefik, gateway]
+    - role: lldap
+      tags: [lldap, gateway]
+    - role: authelia
+      tags: [authelia, gateway]

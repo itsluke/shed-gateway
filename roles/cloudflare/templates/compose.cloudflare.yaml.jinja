@@ -1,0 +1,51 @@
+---
+services:
+  traefik_tunnel:
+    container_name: traefik_cloudflared-tunnel
+    image: cloudflare/cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    networks:
+      traefik:
+    environment:
+      TUNNEL_TOKEN: "{{ cloudflare_tunnel_token }}"
+
+  traefik_tunnel-companion:
+    container_name: traefik_tunnel-companion
+    image: ghcr.io/tiredofit/docker-traefik-cloudflare-companion:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TIMEZONE: "Europe/London"
+      LOG_TYPE: "CONSOLE"
+      LOG_LEVEL: "INFO"
+      TRAEFIK_VERSION: "3"
+      RC_TYPE: "CNAME"
+      TARGET_DOMAIN: "{{ root_domain }}"
+      CF_TOKEN: "{{ cloudflare_ddns_api_token }}"
+      REFRESH_ENTRIES: "TRUE"
+      DOMAIN1: "{{ root_domain }}"
+      DOMAIN1_ZONE_ID: "{{ cloudflare_ddns_zone_id }}"
+      DOMAIN1_PROXIED: "TRUE"
+    restart: always
+    networks:
+      - traefik
+
+  cloudflare_ddns:
+    image: timothyjmiller/cloudflare-ddns:latest
+    container_name: cloudflare_ddns
+    security_opt:
+      - no-new-privileges:true
+    network_mode: "host"
+    environment:
+      - PUID={{ uID }}
+      - PGID={{ gID }}
+      - CONFIG_PATH=/mnt/config
+    volumes:
+      - "{{ docker_data_dir }}/cloudflare_ddns/:/mnt/"
+    restart: unless-stopped
+
+networks:
+  traefik:
+    name: "{{ traefik_webgateway }}"
+    external: true

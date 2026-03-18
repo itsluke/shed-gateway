@@ -1,0 +1,34 @@
+---
+- name: Set container for service
+  ansible.builtin.set_fact:
+    service_name: "cloudflare"
+    data_dir: "{{ docker_data_dir }}/cloudflare"
+
+- name: Setup cloudflare_ddns config directory
+  ansible.builtin.file:
+    state: directory
+    path: "{{ docker_data_dir }}/cloudflare_ddns/config"
+    owner: "{{ username }}"
+    group: "{{ docker_group | default(username) }}"
+    mode: '0755'
+
+- name: Template cloudflare_ddns config
+  ansible.builtin.template:
+    src: templates/config.ddns.json.jinja
+    dest: "{{ docker_data_dir }}/cloudflare_ddns/config/config.json"
+  notify: "cloudflare: reload"
+
+- name: Template the compose file
+  ansible.builtin.template:
+    src: templates/compose.cloudflare.yaml.jinja
+    dest: "{{ docker_compose_dir }}/compose.cloudflare.yaml"
+  notify: "cloudflare: reload"
+
+- name: Start cloudflare services
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files:
+      - compose.cloudflare.yaml
+    state: present
+  when: not ansible_check_mode

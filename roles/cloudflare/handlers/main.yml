@@ -1,0 +1,13 @@
+---
+- name: "cloudflare: reload"
+  listen: "cloudflare: reload"
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files:
+      - compose.cloudflare.yaml
+    services:
+      - traefik_tunnel
+      - traefik_tunnel-companion
+    state: restarted
+  when: not ansible_check_mode

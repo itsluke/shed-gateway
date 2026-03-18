@@ -1,0 +1,16 @@
+traefik_dirs:
+  - "config"
+  - "letsencrypt"
+  - "bluegreen"
+  - "acme"
+
+traefik_api_url: "http://traefik:8080/api"
+traefik_api_external_url: "http://{{ ansible_host }}:9090/api"
+traefik_webgateway: "traefik_webgateway"
+traefik_username: "caretaker"
+traefik_password: "{{ vault_traefik_password }}"
+
+bluegreen_key: 'bluegreen'
+bluegreen_prefixes:
+  - 'blue'
+  - 'green'

@@ -1,0 +1,23 @@
+---
+auth_redirection_url: "https://auth.{{ root_domain }}"
+auth_2fa_method: totp
+auth_domain: "auth.{{ root_domain }}"
+auth_root_domain: "{{ root_domain }}"
+
+authelia_jwt_secret: "{{ vault_authelia_jwt_secret }}"
+authelia_session_secret: "{{ vault_authelia_session_secret }}"
+authelia_encryption_key: "{{ vault_authelia_encryption_key }}"
+redis_authelia_password_strong: "{{ vault_redis_authelia_password }}"
+
+authelia_dirs:
+  - "config"
+  - "logs"
+  - "db/redis"
+  - "db/mariadb"
+
+authelia:
+  mysql:
+    db: authelia
+    user: authelia
+    password: "{{ vault_authelia_mysql_password }}"
+    root_password: "{{ vault_authelia_mysql_root_password }}"

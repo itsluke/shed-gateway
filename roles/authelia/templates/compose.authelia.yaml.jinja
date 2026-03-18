@@ -1,0 +1,64 @@
+---
+services:
+  authelia:
+    container_name: authelia
+    image: authelia/authelia:4.38
+    restart: unless-stopped
+    networks:
+      traefik:
+      db:
+    expose:
+      - 9091
+    volumes:
+      - "{{ data_dir }}/config:/config"
+      - "{{ data_dir }}/logs:/var/log/authelia/"
+    environment:
+      TZ: "{{ timezone }}"
+    depends_on:
+      - authelia_redis
+      - authelia_mariadb
+    labels:
+      traefik.enable: 'true'
+      traefik.http.services.authelia.loadbalancer.server.port: '9091'
+      traefik.http.routers.authelia.rule: "Host(`auth.{{ root_domain }}`)"
+      traefik.http.routers.authelia.entrypoints: "web,websecure"
+      traefik.http.routers.authelia.tls.certresolver: "cloudflareResolver"
+      traefik.http.routers.authelia.middlewares: "force-https@file"
+
+  authelia_redis:
+    container_name: redis-authelia
+    image: redis:8-alpine
+    restart: always
+    command: /bin/sh -c "redis-server --requirepass $$REDIS_HOST_PASSWORD"
+    environment:
+      REDIS_HOST_PASSWORD: "{{ redis_authelia_password_strong }}"
+      TZ: "{{ timezone }}"
+    volumes:
+      - "{{ data_dir }}/db/redis:/data"
+    networks:
+      db:
+
+  authelia_mariadb:
+    container_name: authelia_mariadb
+    image: mariadb:11
+    restart: unless-stopped
+    expose:
+      - 3306
+    volumes:
+      - "{{ data_dir }}/db/mariadb:/var/lib/mysql"
+    environment:
+      TZ: "{{ timezone }}"
+      MYSQL_ROOT_PASSWORD: "{{ authelia.mysql.root_password }}"
+      MYSQL_DATABASE: "{{ authelia.mysql.db }}"
+      MYSQL_USER: "{{ authelia.mysql.user }}"
+      MYSQL_PASSWORD: "{{ authelia.mysql.password }}"
+    networks:
+      db:
+
+networks:
+  traefik:
+    name: "{{ traefik_webgateway }}"
+    external: true
+  db:
+    name: "{{ docker_compose_project_name }}_db"
+    external: true

@@ -1,0 +1,17 @@
+---
+# Creates Docker networks required by the gateway stack.
+# Idempotent — safe to re-run if networks already exist (e.g. created by the-shed).
+- name: Create Traefik network
+  community.docker.docker_network:
+    name: "{{ traefik_webgateway }}"
+    ipam_config:
+      - subnet: "{{ traefik_subnet }}"
+        gateway: "{{ traefik_gateway }}"
+    state: present
+  when: not ansible_check_mode
+
+- name: Create db network
+  community.docker.docker_network:
+    name: "{{ docker_compose_project_name }}_db"
+    state: present
+  when: not ansible_check_mode

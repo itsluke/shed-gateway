@@ -1,0 +1,107 @@
+
+http:
+  middlewares:
+    simple-auth:
+      basicAuth:
+        users:
+          - "{{traefik_username}}:{{traefik_password}}"
+        removeHeader: true
+    local-ipallowlist:
+      ipAllowList:
+        sourceRange:
+          - "192.168.5.0/27"
+          - "192.168.10.1/27"
+    force-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    secure-headers:
+      headers:
+        # Enable HTTP Strict Transport Security (HSTS)
+        stsSeconds: 31536000
+        stsPreload: true
+        # X-Content-Type-Options header
+        contentTypeNosniff: true
+        # Prevent browser from running any kind of active content inside the page.
+        frameDeny: true
+        # X-XSS-Protection header to enable browser-based cross-site scripting protection.
+        browserXssFilter: true
+        # Content Security Policy to define allowed sources for content like scripts, images, etc.
+        contentSecurityPolicy: "default-src 'self'; script-src 'self'; object-src 'none';"
+        # Referrer Policy to limit the amount of information the browser sends as referrer
+        referrerPolicy: "no-referrer-when-downgrade"
+        # Permissions Policy header to restrict features and APIs available in the browser
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    nextcloud-secure-headers:
+      headers:
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        # Enable HTTP Strict Transport Security (HSTS)
+        stsSeconds: 31536000
+        stsPreload: true
+        # X-Content-Type-Options header
+        contentTypeNosniff: true
+        # Prevent browser from running any kind of active content inside the page.
+        frameDeny: true
+        # X-XSS-Protection header to enable browser-based cross-site scripting protection.
+        browserXssFilter: true
+        # Permissions Policy header to restrict features and APIs available in the browser
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        referrerPolicy: "same-origin"
+    nextcloud-redirectregex:
+      redirectRegex:
+        permanent: true
+        regex: "(https|http)://(.*)/.well-known/(?:card|cal)dav"
+        replacement: "${1}://${2}/remote.php/dav"
+    nextcloud-chain:
+      chain:
+        middlewares:
+          # - ... (e.g. rate limiting middleware)
+          - nextcloud-redirectregex
+          - nextcloud-secure-headers
+    authelia:
+      forwardAuth:
+        address: "http://authelia:9091/api/authz/forward-auth?authelia_url=https://auth.{{ root_domain }}"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "Remote-User"
+          - "Remote-Groups"
+          - "Remote-Name"
+          - "Remote-Email"
+  routers:
+    traefik:
+      entryPoints:
+        - "web"
+        - "websecure"
+      rule: "Host(`{{host_local}}.autobahn`)"
+      service: "api@internal"
+      tls: true
+{% for svc in gateway_services | selectattr('service', 'defined') %}
+{% set svc_name = svc.domain | regex_replace('[^a-zA-Z0-9]', '-') %}
+    "{{ svc_name }}":
+      rule: "Host(`{{ svc.domain }}`)"
+      entryPoints:
+        - "web"
+{% if not (svc.local | default(false)) %}
+        - "websecure"
+      tls:
+        certResolver: "cloudflareResolver"
+{% endif %}
+      middlewares:
+{% if not (svc.local | default(false)) %}
+        - "force-https"
+{% else %}
+        - "local-ipallowlist"
+{% endif %}
+{% if svc.auth is defined and svc.auth != 'bypass' %}
+        - "authelia"
+{% endif %}
+{% if svc.middleware is defined %}
+        - "{{ svc.middleware }}"
+{% endif %}
+      service: "{{ svc.service }}@docker"
+{% endfor %}
+tls:
+  certificates:
+    - certFile: "/etc/certs/clan.ng.ssl.crt"
+      keyFile: "/etc/certs/clan.ng.ssl.key"

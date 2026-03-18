@@ -1,0 +1,5 @@
+---
+cloudflare_tunnel_token: "{{ vault_cloudflare_tunnel_token }}"
+cloudflare_tunnel_id: "{{ vault_cloudflare_tunnel_id }}"
+cloudflare_ddns_api_token: "{{ vault_cloudflare_ddns_api_token }}"
+cloudflare_ddns_zone_id: "{{ vault_cloudflare_ddns_zone_id }}"

@@ -1,0 +1,122 @@
+---
+
+###############################################################
+#                   Authelia configuration                    #
+###############################################################
+
+jwt_secret: "{{ authelia_jwt_secret }}"
+default_redirection_url: {{ auth_redirection_url }}
+
+server:
+  address: "tcp://0.0.0.0:9091"
+  endpoints:
+    authz:
+      forward-auth:
+        implementation: 'ForwardAuth'
+
+log:
+  level: debug
+
+totp:
+  issuer: {{ auth_root_domain }}
+  period: 30
+  skew: 1
+
+authentication_backend:
+  password_reset:
+    disable: false
+  ldap:
+    implementation: lldap
+    url: ldap://lldap:3890
+    base_dn: "{{ lldap_base_dn }}"
+    additional_users_dn: ou=people
+    users_filter: "(&({username_attribute}={input})(objectclass=person))"
+    additional_groups_dn: ou=groups
+    groups_filter: "(member={dn})"
+    user: "uid={{ lldap_admin_user }},ou=people,{{ lldap_base_dn }}"
+    password: "{{ lldap_admin_password }}"
+
+access_control:
+  default_policy: deny
+  networks:
+    - name: internal
+      networks:
+        - "{{ management_subnet }}"
+  rules:
+    - domain:
+        - "{{ auth_domain }}"
+{% for svc in bypass_domains %}
+        - "{{ svc.domain }}"
+{% endfor %}
+      policy: bypass
+    - domain:
+{% for svc in two_factor_domains %}
+        - "{{ svc.domain }}"
+{% endfor %}
+      policy: two_factor
+    - domain:
+{% for svc in management_domains %}
+        - "{{ svc.domain }}"
+{% endfor %}
+      subject: group:management
+      policy: two_factor
+    - domain:
+        - "clan.ng"
+      policy: bypass
+      networks:
+        - "internal"
+
+session:
+  name: authelia_session
+  secret: "{{ authelia_session_secret }}"
+  expiration: 3600  # 1 hour
+  inactivity: 7200  # 2 hours
+  domain: {{ auth_root_domain }}
+  redis:
+    host: redis-authelia
+    port: 6379
+    password: "{{ redis_authelia_password_strong }}"
+
+regulation:
+  max_retries: 5
+  find_time: 2m
+  ban_time: 10m
+
+storage:
+  encryption_key: "{{ authelia_encryption_key }}"
+  mysql:
+    host: authelia_mariadb
+    port: 3306
+    database: "{{ authelia.mysql.db }}"
+    username: "{{ authelia.mysql.user }}"
+    password: "{{ authelia.mysql.password }}"
+
+notifier:
+  disable_startup_check: true
+  smtp:
+    address: "{{ notify_method.auth.address }}"
+    username: "{{ notify_method.auth.username }}"
+    password: "{{ notify_method.auth.password }}"
+    sender: "{{ notify_method.auth.name }} <{{ notify_method.auth.email }}>"
+    subject: "[Authelia] {title}"
+    disable_require_tls: false
+    disable_html_emails: false
+
+identity_providers:
+  oidc:
+    hmac_secret: "{{ vault_authelia_oidc_hmac }}"
+    jwks:
+      - key_id: main
+        algorithm: RS256
+        use: sig
+        key: |
+          {{ vault_authelia_oidc_private_key | indent(10) }}
+    clients:
+      - id: nextcloud
+        description: Nextcloud
+        secret: "{{ vault_oidc_nextcloud_secret }}"
+        authorization_policy: one_factor
+        redirect_uris:
+          - "https://cloud.{{ root_domain }}/apps/user_oidc/code"
+        scopes: [openid, profile, email, groups]
+        userinfo_signed_response_alg: none

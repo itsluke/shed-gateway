@@ -1,0 +1,60 @@
+---
+# Called via include_tasks from handlers/bluegreen.yml.
+# block/rescue here gives us rollback on Traefik registration failure.
+- block:
+    - name: Wait for Traefik to register inactive service
+      ansible.builtin.uri:
+        url: "{{ traefik_api_external_url }}/http/services/{{ item.inactive.name }}@docker"
+        return_content: true
+        status_code: 200
+      register: traefik_status
+      retries: "{{ max_retries }}"
+      delay: "{{ sleep_interval }}"
+      until: "'UP' in traefik_status.content"
+      loop: "{{ active_bluegreens }}"
+      when: not ansible_check_mode
+
+    - name: Switch traffic — re-template bluegreen routing
+      vars:
+        bluegreen_active_map: >-
+          {{ active_bluegreens | map('combine', {
+               'active': item.inactive.name,
+               'inactive': item.active
+             }) | list }}
+      ansible.builtin.template:
+        src: bluegreen.yml.j2
+        dest: "{{ docker_data_dir }}/traefik/config/dynamic/bluegreen.yml"
+      loop: "{{ active_bluegreens }}"
+      when: not ansible_check_mode
+
+    - name: Write color state file
+      ansible.builtin.copy:
+        content: "{{ item.inactive.name | regex_replace('^(blue|green)-.*', '\\1') }}"
+        dest: "{{ docker_data_dir }}/traefik/bluegreen/{{ item.name }}"
+      loop: "{{ active_bluegreens }}"
+      when: not ansible_check_mode
+
+    - name: Stop previously active service
+      community.docker.docker_compose_v2:
+        project_name: "{{ docker_compose_project_name }}"
+        project_src: "{{ docker_compose_dir }}/"
+        files: "{{ compose_files }}"
+        state: absent
+        wait: true
+        services: "{{ item.active }}"
+      loop: "{{ active_bluegreens }}"
+      when: not ansible_check_mode
+
+  rescue:
+    - name: Rollback — stop inactive container
+      community.docker.docker_compose_v2:
+        project_name: "{{ docker_compose_project_name }}"
+        project_src: "{{ docker_compose_dir }}/"
+        files: "{{ compose_files }}"
+        state: absent
+        services: "{{ item.inactive.name }}"
+      loop: "{{ active_bluegreens }}"
+
+    - name: Re-raise
+      ansible.builtin.fail:
+        msg: "Blue-green deploy failed and was rolled back. See errors above."

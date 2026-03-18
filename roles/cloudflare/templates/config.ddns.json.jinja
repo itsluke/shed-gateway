@@ -1,0 +1,25 @@
+{
+  "cloudflare": [
+    {
+      "authentication": {
+        "api_token": "{{ cloudflare_ddns_api_token }}"
+      },
+      "zone_id": "{{ cloudflare_ddns_zone_id }}",
+      "subdomains": [
+        {
+          "name": "@",
+          "proxied": true
+        }{% for svc in gateway_services %}{% if not (svc.local | default(false)) %},
+        {
+          "name": "{{ svc.domain | replace('.' ~ root_domain, '') }}",
+          "proxied": true
+        }{% endif %}{% endfor %}
+
+      ]
+    }
+  ],
+  "a": true,
+  "aaaa": true,
+  "purgeUnknownRecords": false,
+  "ttl": 300
+}

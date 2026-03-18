@@ -1,0 +1,95 @@
+---
+- name: Set container for service
+  ansible.builtin.set_fact:
+    service_name: "traefik"
+    data_dir: "{{ docker_data_dir }}/traefik"
+    directories: "{{ traefik_dirs }}"
+    restart_handler: "traefik: reload"
+
+- name: Setup service directories
+  ansible.builtin.file:
+    state: directory
+    path: "{{ data_dir }}/{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ docker_group | default(username) }}"
+    mode: '0755'
+  loop: "{{ traefik_dirs }}"
+
+- name: "Configure {{ service_name }}"
+  when: not skip_service | default(false)
+  block:
+    - name: Template the static config
+      ansible.builtin.template:
+        src: templates/traefik.yml
+        dest: "{{ data_dir }}/config/traefik.yml"
+      notify: "{{ restart_handler }}"
+
+    - name: Create the dynamic directory
+      ansible.builtin.file:
+        state: directory
+        path: "{{ data_dir }}/config/dynamic"
+        owner: "{{ username }}"
+        group: "{{ docker_group | default(username) }}"
+      notify: "{{ restart_handler }}"
+
+    - name: Collect bluegreen service names
+      ansible.builtin.set_fact:
+        bluegreen_names: >-
+          {{ bluegreen_services
+             | map(attribute='name')
+             | list }}
+      when: bluegreen_services is defined and bluegreen_services | length > 0
+
+    - name: Build initial bluegreen active map
+      ansible.builtin.set_fact:
+        bluegreen_active_map: >-
+          {{ bluegreen_active_map | default([]) + [{'name': item, 'active': 'green-' + item, 'inactive': 'blue-' + item}] }}
+      loop: "{{ bluegreen_names | default([]) }}"
+      when: bluegreen_names is defined
+
+    - name: Template initial bluegreen routing
+      ansible.builtin.template:
+        src: templates/bluegreen.yml.j2
+        dest: "{{ data_dir }}/config/dynamic/bluegreen.yml"
+      when: bluegreen_names is defined and bluegreen_names | length > 0
+
+    - name: Template the dynamic config
+      ansible.builtin.template:
+        src: templates/dynamic.yml
+        dest: "{{ data_dir }}/config/dynamic/dynamic.yml"
+      notify: "{{ restart_handler }}"
+
+    - name: Create the certs directory
+      ansible.builtin.file:
+        state: directory
+        path: "{{ data_dir }}/certs/"
+        owner: "{{ username }}"
+        group: "{{ docker_group | default(username) }}"
+        mode: '0600'
+        recurse: true
+      notify: "{{ restart_handler }}"
+
+    - name: Copy the certs directory
+      ansible.builtin.copy:
+        src: "certs/"
+        dest: "{{ data_dir }}/certs/"
+        owner: "{{ username }}"
+        group: "{{ docker_group | default(username) }}"
+        mode: '0600'
+      notify: "{{ restart_handler }}"
+
+    - name: Template the compose file
+      ansible.builtin.template:
+        src: templates/compose.traefik.yaml.jinja
+        dest: "{{ docker_compose_dir }}/compose.traefik.yaml"
+      notify: "{{ restart_handler }}"
+
+    - name: Start traefik
+      community.docker.docker_compose_v2:
+        project_name: "{{ docker_compose_project_name }}"
+        project_src: "{{ docker_compose_dir }}/"
+        files:
+          - compose.traefik.yaml
+        state: present
+        wait: true
+      when: not ansible_check_mode

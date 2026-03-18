@@ -1,0 +1,7 @@
+---
+lldap_base_dn: "dc=clan,dc=ng"
+lldap_admin_user: admin
+lldap_jwt_secret: "{{ vault_lldap_jwt_secret }}"
+lldap_admin_password: "{{ vault_lldap_admin_password }}"
+lldap_dirs:
+  - data

@@ -1,0 +1,32 @@
+---
+services:
+  traefik:
+    container_name: traefik
+    restart: unless-stopped
+    image: traefik:v3.4
+    ports:
+      - "80:80" #HTTP traffic
+      - "443:443" #HTTPS traffic
+      - "9090:8080" # Traefik dashboard
+    environment:
+      - "CF_DNS_API_TOKEN={{ cloudflare_ddns_api_token }}"
+      - "CF_ZONE_API_TOKEN={{ cloudflare_ddns_zone_id }}"
+    labels:
+      traefik.http.middlewares.local-ipallowlist.ipAllowList.sourceRange: '192.168.5.0/27'
+    volumes:
+      # Docker connection
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Config files
+      - "{{ data_dir }}/config/traefik.yml:/traefik.yml:ro"
+      - "{{ data_dir }}/config/dynamic/:/dynamic/"
+      # Certs dir
+      - "{{ data_dir }}/certs:/etc/certs:ro"
+      - "{{ data_dir }}/acme/:/acme/"
+    networks:
+      traefik:
+        ipv4_address: "{{ traefikproxymanager_url }}"
+
+networks:
+  traefik:
+    name: "{{ traefik_webgateway }}"
+    external: true

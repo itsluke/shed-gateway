@@ -1,0 +1,185 @@
+---
+
+# - name: Debug
+#   listen: 
+#     - "deploy: bluegreen"
+#     - "containers: deploy bluegreen"
+#   ansible.builtin.set_fact:
+#     debug: true
+
+- name: Set facts
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.set_fact:
+    sleep_interval: 20
+    max_retries: 5
+  when: 
+    - bluegreen_deploy is defined
+    - bluegreen_deploy | length > 0
+
+- name: Checkmode stub
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.set_fact:
+    stubbed_ip: "172.99.9.9"
+  when: ansible_check_mode
+
+# Read persisted color state (written after each successful deploy)
+- name: Read color state files
+  listen:
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.slurp:
+    src: "{{ docker_data_dir }}/traefik/bluegreen/{{ item }}"
+  register: color_state
+  loop: "{{ bluegreen_deploy }}"
+  ignore_errors: true  # file won't exist on first deploy
+
+# Find which of the services is currently active
+- name: Check for active bluegreen services
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  community.docker.docker_container_info:
+    name: "{{ item | bluegreen( bluegreen_prefixes[0] ) }}"
+  register: active_service_result
+  loop: "{{ bluegreen_deploy }}"
+
+- name: Debug active service result
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.debug:
+    msg: "{{active_service_result.results[0]}}"
+  when: (debug | default(false)) == true
+      
+- name: Define active bluegreens
+  listen:
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  vars:
+    _state_result: "{{ color_state.results | default([]) | selectattr('item', '==', item.item) | first | default({}) }}"
+    _file_color: "{{ _state_result.content | default('') | b64decode | trim }}"
+    _file_prefix: "{{ _file_color if _file_color in bluegreen_prefixes else '' }}"
+    prefix: >-
+      {{
+        _file_prefix if _file_prefix != ''
+        else (bluegreen_prefixes[0] if item.exists and item.container.State.Running == true else bluegreen_prefixes[1])
+      }}
+    item_service_name: "{{ item.item }}"
+    item_data:  
+      - name: "{{item_service_name}}"
+        active: "{{item_service_name | bluegreen( prefix )}}"
+        inactive: "{{item_service_name | bluegreen(bluegreen_prefixes[1] if prefix == bluegreen_prefixes[0] else bluegreen_prefixes[0])}}"
+  ansible.builtin.set_fact:
+    active_bluegreens: "{{ active_bluegreens | default([]) + item_data }}"
+  loop: "{{ active_service_result.results }}"
+  loop_control:
+    label: "{{ item.container.State if item.exists else item }}"
+  when: 
+      - active_service_result.results | length > 0
+
+- name: Start inactive services
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files: "{{ compose_files }}"
+    remove_orphans: true
+    state: "present"
+    services: "{{ item.inactive }}"
+    wait: true
+  register: started_services
+  loop: "{{ active_bluegreens }}"
+
+- name: Index started services by inactive name
+  ansible.builtin.set_fact:
+    started_index: >-
+      {{
+        dict((started_services.results 
+        | map(attribute='item') 
+        | map(attribute='inactive') | list) 
+        | zip(started_services.results))
+      }}
+
+- name: Grab last container list
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.set_fact:
+    running_containers: "{{ started_services.results | last }}"
+
+- name: Add container state to active_bluegreens
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  vars:
+    status: "{{ running_containers.containers | selectattr('Name', '==', item.inactive ) | first }}"
+    cleaned_list: "{{ active_bluegreens | difference([item]) }}"
+  ansible.builtin.set_fact:
+    active_bluegreens: "{{ cleaned_list + [ item | ansible.builtin.combine({ 'inactive':{'name': status.Name, 'state': status.State,'status': status.Status }})] }}"
+  loop: "{{ active_bluegreens }}"
+  when: 
+    - running_containers.failed is false
+    - not ansible_check_mode
+
+- name: Stub assertion when check_mode
+  ansible.builtin.set_fact:
+    new_container_info:
+      exists: true
+      failed: false
+      container:
+        State:
+          Running: true
+        NetworkSettings:
+          Networks:
+            app_services_app:
+              IPAddress: "{{stubbed_ip}}"
+  when: ansible_check_mode
+
+- name: Fail if new environment is not healthy
+  listen: 
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.fail:
+    msg: "{{ inactive_service }} did not become healthy within {{ sleep_interval * max_retries }} seconds"
+  when: running_containers.failed == true
+
+# - name: Debug NetworkSettings
+#   listen: 
+#     - "deploy: bluegreen"
+#     - "containers: deploy bluegreen"
+#   ansible.builtin.debug:
+#     msg: "NetworkSettings: {{ new_container_info.container.NetworkSettings }}"
+#   when: debug | default(false) == true
+
+# - name: Set new container IP 
+#   listen: 
+#     - "deploy: bluegreen"
+#     - "containers: deploy bluegreen"
+#   ansible.builtin.set_fact:
+#     new_container_ip: "{{ new_container_info.container.NetworkSettings.Networks[traefik_webgateway].IPAddress }}"
+
+# - name: Debug new container IP
+#   listen: 
+#     - "deploy: bluegreen"
+#     - "containers: deploy bluegreen"
+#   vars:
+#     inactive_service: item
+#   ansible.builtin.debug:
+#     msg: "{{ inactive_service.inactive }}"
+#   loop: "{{ active_bluegreens }}"
+#   when: debug | default(false) == true
+
+- name: Register, switch, and clean up
+  listen:
+    - "deploy: bluegreen"
+    - "containers: deploy bluegreen"
+  ansible.builtin.include_tasks: bluegreen_switch.yml
+  when:
+    - active_bluegreens is defined
+    - active_bluegreens | length > 0

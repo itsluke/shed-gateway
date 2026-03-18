@@ -1,0 +1,30 @@
+---
+- name: Set container for service
+  ansible.builtin.set_fact:
+    service_name: "lldap"
+    data_dir: "{{ docker_data_dir }}/lldap"
+
+- name: Setup service directories
+  ansible.builtin.file:
+    state: directory
+    path: "{{ data_dir }}/{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ docker_group | default(username) }}"
+    mode: '0755'
+  loop: "{{ lldap_dirs }}"
+
+- name: Template the compose file
+  ansible.builtin.template:
+    src: templates/compose.lldap.yaml.jinja
+    dest: "{{ docker_compose_dir }}/compose.lldap.yaml"
+  notify: "lldap: reload"
+
+- name: Start lldap
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files:
+      - compose.lldap.yaml
+    state: present
+    wait: true
+  when: not ansible_check_mode

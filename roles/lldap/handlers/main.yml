@@ -1,0 +1,12 @@
+---
+- name: "lldap: reload"
+  listen: "lldap: reload"
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files:
+      - compose.lldap.yaml
+    services:
+      - lldap
+    state: restarted
+  when: not ansible_check_mode

@@ -1,0 +1,14 @@
+---
+- import_tasks: bluegreen.yml
+
+- name: "traefik: reload"
+  listen: "traefik: reload"
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files:
+      - compose.traefik.yaml
+    services:
+      - traefik
+    state: restarted
+  when: not ansible_check_mode

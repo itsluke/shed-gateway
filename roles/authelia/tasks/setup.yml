@@ -1,0 +1,45 @@
+---
+- name: Set container for service
+  ansible.builtin.set_fact:
+    service_name: "authelia"
+    data_dir: "{{ docker_data_dir }}/authelia"
+    directories: "{{ authelia_dirs }}"
+
+- name: Setup service directories
+  ansible.builtin.file:
+    state: directory
+    path: "{{ data_dir }}/{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ docker_group | default(username) }}"
+    mode: '0755'
+  loop: "{{ authelia_dirs }}"
+
+- name: "Configure {{ service_name }}"
+  when: not skip_service | default(false)
+  block:
+    - name: Template config file
+      vars:
+        bypass_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'bypass') | list }}"
+        two_factor_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'two_factor') | list }}"
+        management_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'management') | list }}"
+      ansible.builtin.template:
+        src: templates/configuration.yaml.jinja
+        dest: "{{ data_dir }}/config/configuration.yml"
+      notify: "authelia: reload"
+
+    - name: Template the compose file
+      ansible.builtin.template:
+        src: templates/compose.authelia.yaml.jinja
+        dest: "{{ docker_compose_dir }}/compose.authelia.yaml"
+      notify: "authelia: reload"
+
+    - name: Start authelia services
+      community.docker.docker_compose_v2:
+        project_name: "{{ docker_compose_project_name }}"
+        project_src: "{{ docker_compose_dir }}/"
+        files:
+          - compose.authelia.yaml
+        state: present
+        wait: true
+        wait_timeout: 120
+      when: not ansible_check_mode

@@ -1,0 +1,12 @@
+---
+- name: "authelia: reload"
+  listen: "authelia: reload"
+  community.docker.docker_compose_v2:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_dir }}/"
+    files:
+      - compose.authelia.yaml
+    services:
+      - authelia
+    state: restarted
+  when: not ansible_check_mode
