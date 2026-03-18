@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     networks:
       traefik:
+        aliases:
+          - authelia-cluster
       db:
     expose:
       - 9091
@@ -20,6 +22,29 @@ services:
     labels:
       traefik.enable: 'true'
       traefik.http.services.authelia.loadbalancer.server.port: '9091'
+
+  # Replica sharing the same Redis + MariaDB state — Docker DNS round-robins
+  # between authelia and authelia_local via the shared 'authelia-cluster' alias.
+  # forwardAuth points to authelia-cluster so either instance handles auth checks.
+  authelia_local:
+    container_name: authelia_local
+    image: authelia/authelia:4.38
+    restart: unless-stopped
+    networks:
+      traefik:
+        aliases:
+          - authelia-cluster
+      db:
+    expose:
+      - 9091
+    volumes:
+      - "{{ data_dir }}/config:/config"
+      - "{{ data_dir }}/logs:/var/log/authelia/"
+    environment:
+      TZ: "{{ timezone }}"
+    depends_on:
+      - authelia_redis
+      - authelia_mariadb
 
   authelia_redis:
     container_name: redis-authelia

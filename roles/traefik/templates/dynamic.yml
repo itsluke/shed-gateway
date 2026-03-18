@@ -61,7 +61,8 @@ http:
           - nextcloud-secure-headers
     authelia:
       forwardAuth:
-        address: "http://authelia:9091/api/authz/forward-auth?authelia_url=https://auth.{{ root_domain }}"
+        # Points to the shared Docker DNS alias — resolves to both authelia + authelia_local
+        address: "http://authelia-cluster:9091/api/authz/forward-auth?authelia_url=https://auth.{{ root_domain }}"
         trustForwardHeader: true
         authResponseHeaders:
           - "Remote-User"
@@ -93,7 +94,7 @@ http:
 {% else %}
         - "local-ipallowlist"
 {% endif %}
-{% if svc.auth is defined and svc.auth != 'bypass' %}
+{% if svc.auth is defined and svc.auth != 'bypass' and not (svc.local | default(false)) %}
         - "authelia"
 {% endif %}
 {% if svc.middleware is defined %}
