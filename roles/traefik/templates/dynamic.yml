@@ -99,7 +99,7 @@ http:
 {% if svc.middleware is defined %}
         - "{{ svc.middleware }}"
 {% endif %}
-      service: "{{ svc.service }}@docker"
+      service: "{{ svc.service }}@{{ 'file' if svc.bluegreen | default(false) else 'docker' }}"
 {% endfor %}
 tls:
   certificates:

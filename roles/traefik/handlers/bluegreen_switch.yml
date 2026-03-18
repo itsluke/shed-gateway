@@ -14,17 +14,23 @@
       loop: "{{ active_bluegreens }}"
       when: not ansible_check_mode
 
+    # Build a new map with active pointing at the newly started (previously inactive) service.
+    # Done as a separate set_fact loop so the template task below can render the full list at once —
+    # using a loop+vars on the template task would write the file once per item, with each write
+    # seeing only the current loop item's active service (last write wins, rest overwritten).
+    - name: Build switched active map
+      ansible.builtin.set_fact:
+        bluegreen_switched_map: >-
+          {{ (bluegreen_switched_map | default([])) + [{'name': item.name, 'active': item.inactive.name, 'inactive': item.active}] }}
+      loop: "{{ active_bluegreens }}"
+      when: not ansible_check_mode
+
     - name: Switch traffic — re-template bluegreen routing
       vars:
-        bluegreen_active_map: >-
-          {{ active_bluegreens | map('combine', {
-               'active': item.inactive.name,
-               'inactive': item.active
-             }) | list }}
+        bluegreen_active_map: "{{ bluegreen_switched_map }}"
       ansible.builtin.template:
-        src: bluegreen.yml.j2
+        src: templates/bluegreen.yml.j2
         dest: "{{ docker_data_dir }}/traefik/config/dynamic/bluegreen.yml"
-      loop: "{{ active_bluegreens }}"
       when: not ansible_check_mode
 
     - name: Write color state file
@@ -46,6 +52,12 @@
       when: not ansible_check_mode
 
   rescue:
+    - name: Rollback — report failure
+      ansible.builtin.debug:
+        msg: >-
+          Blue-green deploy failed for {{ active_bluegreens | map(attribute='name') | join(', ') }}.
+          Stopping newly started containers and leaving current active in place.
+
     - name: Rollback — stop inactive container
       community.docker.docker_compose_v2:
         project_name: "{{ docker_compose_project_name }}"
