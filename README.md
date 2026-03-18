@@ -37,7 +37,7 @@ ansible-playbook main.yml --tags lldap
 |------|-------------|
 | `cloudflare` | Cloudflare tunnel + DDNS companion containers |
 | `traefik` | Traefik v3 reverse proxy, TLS via Cloudflare DNS challenge, dynamic file-based blue-green routing |
-| `authelia` | Authelia v4.38 SSO portal, backed by LLDAP, with OIDC for Nextcloud |
+| `authelia` | Authelia v4.38 SSO portal, backed by LLDAP, with OIDC for Nextcloud. Runs two instances (`authelia` + `authelia_local`) sharing state via Redis + MariaDB |
 | `lldap` | Lightweight LDAP (lldap) user directory |
 
 ## Vault variables
@@ -58,6 +58,18 @@ ansible-playbook main.yml
 ```
 
 If you change a template and don't run the playbook, the running containers will continue using the old rendered config until the next playbook run.
+
+## Authelia resilience
+
+Two mitigations are in place to prevent an Authelia outage from locking users out:
+
+**Replica instance**
+A second container (`authelia_local`) runs alongside the primary, sharing the same Redis session store and MariaDB. Both containers register under the `authelia-cluster` Docker DNS alias — Docker round-robins requests between them. If one dies, the other continues serving auth checks transparently. The `auth.clan.ng` login UI still routes to the primary only.
+
+Remaining single points of failure (accepted): Redis and MariaDB. If either goes down, both instances fail together.
+
+**Local network bypass**
+Routes with `local: true` (`haus.*`) never hit Authelia — the `authelia` forwardAuth middleware is not applied. Access is restricted to the internal subnet via `local-ipallowlist`. A complete Authelia outage has no impact on local access to any service.
 
 ## Relationship to the-shed
 
