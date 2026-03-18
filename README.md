@@ -44,6 +44,21 @@ ansible-playbook main.yml --tags lldap
 
 All secrets live in `host_vars/shed/vault.yml` (ansible-vault encrypted). See the placeholder keys in that file.
 
+## Deployment workflow
+
+Templates are not applied automatically — they are rendered and deployed by running the playbook. **Always run the playbook after changing any template, task, or variable file.**
+
+Recommended workflow:
+```bash
+# Dry-run first to preview changes
+ansible-playbook main.yml --check
+
+# Apply changes
+ansible-playbook main.yml
+```
+
+If you change a template and don't run the playbook, the running containers will continue using the old rendered config until the next playbook run.
+
 ## Migration note
 
 **Do not remove gateway roles from `the-shed/main.yml`** until this project is deployed, all routes verified, and Phase 4 Docker label migration confirmed working on every service.
