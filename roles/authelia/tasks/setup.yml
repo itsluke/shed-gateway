@@ -20,6 +20,7 @@
     - name: Template config file
       vars:
         bypass_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'bypass') | list }}"
+        one_factor_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'one_factor') | list }}"
         two_factor_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'two_factor') | list }}"
         management_domains: "{{ gateway_services | selectattr('auth', 'defined') | selectattr('auth', 'eq', 'management') | list }}"
       ansible.builtin.template:

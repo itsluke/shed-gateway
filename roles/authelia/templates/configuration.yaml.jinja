@@ -49,6 +49,13 @@ access_control:
         - "{{ svc.domain }}"
 {% endfor %}
       policy: bypass
+{% if one_factor_domains %}
+    - domain:
+{% for svc in one_factor_domains %}
+        - "{{ svc.domain }}"
+{% endfor %}
+      policy: one_factor
+{% endif %}
     - domain:
 {% for svc in two_factor_domains %}
         - "{{ svc.domain }}"
