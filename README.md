@@ -59,6 +59,11 @@ ansible-playbook main.yml
 
 If you change a template and don't run the playbook, the running containers will continue using the old rendered config until the next playbook run.
 
-## Migration note
+## Relationship to the-shed
 
-**Do not remove gateway roles from `the-shed/main.yml`** until this project is deployed, all routes verified, and Phase 4 Docker label migration confirmed working on every service.
+`the-shed` manages application containers (Home Assistant, Jellyfin, Nextcloud, etc.). Each container defines its own Traefik routing via Docker labels. This project owns the gateway layer — Traefik picks up those labels automatically over the shared Docker socket.
+
+Blue-green deployments (currently: Home Assistant) are coordinated between both repos:
+- `the-shed` deploys blue/green containers and notifies the bluegreen handler
+- shed-gateway's Traefik reads `bluegreen.yml` (file provider) to route traffic to the active colour
+- The `bluegreen_switch.yml` handler in this repo manages the traffic switch and state persistence
