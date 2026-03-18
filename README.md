@@ -61,9 +61,11 @@ If you change a template and don't run the playbook, the running containers will
 
 ## Relationship to the-shed
 
-`the-shed` manages application containers (Home Assistant, Jellyfin, Nextcloud, etc.). Each container defines its own Traefik routing via Docker labels. This project owns the gateway layer — Traefik picks up those labels automatically over the shared Docker socket.
+`the-shed` manages application containers (Home Assistant, Jellyfin, Nextcloud, etc.). Containers expose only their backend port via a single `traefik.http.services.<name>.loadbalancer.server.port` label — they do not define routers or middleware.
+
+All routing policy lives here, in `group_vars/gateway.yml` (`gateway_services` list) and the `roles/traefik/templates/dynamic.yml` template. Adding or changing a route means updating `gateway_services` and re-running this playbook — no changes to `the-shed` are needed.
 
 Blue-green deployments (currently: Home Assistant) are coordinated between both repos:
 - `the-shed` deploys blue/green containers and notifies the bluegreen handler
-- shed-gateway's Traefik reads `bluegreen.yml` (file provider) to route traffic to the active colour
+- shed-gateway's `dynamic.yml` generates routers pointing to the active colour; `bluegreen.yml` (file provider) carries the weighted service definition
 - The `bluegreen_switch.yml` handler in this repo manages the traffic switch and state persistence
