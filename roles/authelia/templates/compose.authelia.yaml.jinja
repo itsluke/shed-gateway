@@ -20,10 +20,6 @@ services:
     labels:
       traefik.enable: 'true'
       traefik.http.services.authelia.loadbalancer.server.port: '9091'
-      traefik.http.routers.authelia.rule: "Host(`auth.{{ root_domain }}`)"
-      traefik.http.routers.authelia.entrypoints: "web,websecure"
-      traefik.http.routers.authelia.tls.certresolver: "cloudflareResolver"
-      traefik.http.routers.authelia.middlewares: "force-https@file"
 
   authelia_redis:
     container_name: redis-authelia
