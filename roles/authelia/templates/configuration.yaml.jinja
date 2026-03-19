@@ -4,8 +4,17 @@
 #                   Authelia configuration                    #
 ###############################################################
 
-jwt_secret: "{{ authelia_jwt_secret }}"
 default_redirection_url: {{ auth_redirection_url }}
+
+identity_validation:
+  reset_password:
+    jwt_secret: "{{ authelia_jwt_secret }}"
+  elevated_session:
+    code_lifespan: 5m
+    elevation_lifespan: 10m
+    characters: 8
+    require_second_factor: false
+    skip_second_factor: false
 
 server:
   address: "tcp://0.0.0.0:9091"

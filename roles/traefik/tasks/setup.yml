@@ -71,7 +71,7 @@
 
     - name: Copy the certs directory
       ansible.builtin.copy:
-        src: "certs/"
+        src: "ssl/"
         dest: "{{ data_dir }}/certs/"
         owner: "{{ username }}"
         group: "{{ docker_group | default(username) }}"
