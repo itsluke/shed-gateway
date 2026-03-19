@@ -64,6 +64,7 @@ http:
         # Points to the shared Docker DNS alias — resolves to both authelia + authelia_local
         address: "http://authelia-cluster:9091/api/authz/forward-auth?authelia_url=https://auth.{{ root_domain }}"
         trustForwardHeader: true
+        maxBodySize: 1048576
         authResponseHeaders:
           - "Remote-User"
           - "Remote-Groups"
@@ -85,8 +86,7 @@ http:
         - "web"
 {% if not (svc.local | default(false)) %}
         - "websecure"
-      tls:
-        certResolver: "cloudflareResolver"
+      tls: {}
 {% endif %}
       middlewares:
 {% if not (svc.local | default(false)) %}

@@ -20,6 +20,8 @@ services:
       LOG_TYPE: "CONSOLE"
       LOG_LEVEL: "INFO"
       TRAEFIK_VERSION: "2"
+      ENABLE_TRAEFIK_POLL: "TRUE"
+      TRAEFIK_POLL_URL: "http://traefik:8080"
       RC_TYPE: "CNAME"
       TARGET_DOMAIN: "{{ root_domain }}"
       CF_TOKEN: "{{ cloudflare_ddns_api_token }}"

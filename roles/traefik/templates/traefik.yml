@@ -20,12 +20,6 @@ entryPoints:
     transport:
       respondingTimeouts:
         readTimeout: 24h # Allows uploads > 100MB; prevents connection reset due to chunking (public upload-only links)
-    http:
-      tls:
-        certResolver: "cloudflareResolver"
-        domains:
-          - main: "clan.ng"
-            sans: "*.clan.ng"
 
 tls:
   options:
