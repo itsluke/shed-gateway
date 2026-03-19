@@ -46,7 +46,6 @@ providers:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
     watch: true
-    pollInterval: "15s"
     network: "{{ traefik_webgateway }}"
   file:
     directory: /dynamic
