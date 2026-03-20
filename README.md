@@ -52,7 +52,7 @@ All externally-accessible services are declared in the `gateway_services` list i
   middleware: nextcloud-chain     # optional — custom Traefik middleware
 ```
 
-`roles/traefik/templates/dynamic.yml` generates Traefik routers from this list at deploy time. Adding or changing a route means updating `gateway_services` and re-running `-t traefik` — no changes to the application layer are needed.
+`roles/traefik/templates/dynamic.yml` generates Traefik routers from this list at deploy time. Adding or changing a route means updating `gateway_services` and re-running `-t gateway` (which updates both Traefik routes and Authelia access policies) — no changes to the application layer are needed.
 
 ### Auth tiers
 
@@ -117,11 +117,13 @@ Add an entry to `gateway_services` in `group_vars/gateway.yml`:
   auth: two_factor        # bypass | one_factor | two_factor | management
 ```
 
-Then re-deploy just the Traefik role:
+Then re-deploy the gateway:
 
 ```bash
-ansible-playbook -i hosts/inventory.ini main.yml --vault-id shed@.vault-pass-shed-gateway.txt -t traefik
+ansible-playbook -i hosts/inventory.ini main.yml --vault-id shed@.vault-pass-shed-gateway.txt -t gateway
 ```
+
+This updates both Traefik routes and Authelia access control rules. Using `-t traefik` alone will create the route but **not** update Authelia's access policy — any service with `auth` other than `bypass` will return 403 without a login redirect.
 
 Cloudflare Companion picks up the new service automatically and creates the DNS CNAME record.
 
